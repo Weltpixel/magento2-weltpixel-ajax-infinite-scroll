@@ -1,0 +1,77 @@
+<?php
+/**
+ * @var $block \WeltPixel\AjaxInfiniteScroll\Block\AjaxInfiniteScroll
+ */
+?>
+
+<?php
+    $helper = $this->helper('WeltPixel\AjaxInfiniteScroll\Helper\Data');
+    $displaySwatchClass = '';
+    if ($helper->isAjaxCatalogEnabled()) {
+        $ajaxCatalogMode = $helper->getAjaxCatalogMode();
+        switch ($ajaxCatalogMode) {
+            case 'infinite_scroll':
+                ?>
+                <script>
+                    window.ajaxCatalog = 'infiniteScroll';
+                    window.currentCategory = '<?php /* @noEscape */ echo (int) $helper->getCurrentCategoryId(); ?>';
+                    window.LoadMore = '<?php /* @noEscape */ echo $helper->getLoadMore() ? (int) trim($helper->getLoadMore()) : 0; ?>';
+                    window.negativeMargin = '<?php /* @noEscape */ echo $helper->getLoadingEarly() ? (int) trim($helper->getNegativeMargin()) : 0; ?>';
+                    window.textNext = <?php /* @noEscape */ echo json_encode($helper->getTextLoadNext()); ?>;
+                    window.textPrevious = <?php /* @noEscape */ echo json_encode($helper->getTextLoadPrevious()); ?>;
+                    window.textNoMore = <?php /* @noEscape */ echo json_encode($helper->getTextNoMore()); ?>;
+                    window.infiniteShowViewedProducts = '<?php /* @noEscape */ echo (int) $helper->showViewedProducts(); ?>';
+                    window.infiniteShowViewedProductsText = <?php /* @noEscape */ echo json_encode($helper->getTextForViewedProducts()); ?>;
+                </script>
+                <?php
+                break;
+            case 'next_page':
+                ?>
+                <script>
+                    window.ajaxCatalog = 'nextPage';
+                    window.currentCategory = '<?php /* @noEscape */ echo (int) $helper->getCurrentCategoryId(); ?>';
+                    window.ajaxReloadPaginationUrl = <?php /* @noEscape */ echo json_encode($helper->getAjaxReloadPaginationUrl()); ?>;
+                </script>
+                <?php
+                break;
+            default:
+                ?><script>window.ajaxCatalog = 'disabled';</script><?php
+                break;
+        }
+    }
+?>
+<?php if ($helper->isAjaxCatalogEnabled()): ?>
+<div class="ajax-infinite-scroll-js">
+    <script>
+        require(['jquery', 'ajaxinfinitescroll'], function($){
+            $(function($) {
+                window.loadingImage = <?php /* @noEscape */ echo json_encode($helper->getLoadingImage()); ?>;
+                window.wp_ajax_useCustomPlaceholder = '<?php /* @noEscape */ echo (int) $helper->isCustomLoadingPlaceholderEnabled(); ?>';
+                window.wp_ajax_placeholderCustomWidth = '<?php /* @noEscape */ echo (int) $helper->getLoadingPlaceholderWidth(); ?>';
+                window.textLoadingMore = <?php /* @noEscape */ echo json_encode($helper->getTextLoading()); ?>;
+                window.showCanonical = '<?php /* @noEscape */ echo (int) $helper->isEnabledCanonicalPrevNext(); ?>';
+                window.ajaxCanonicalRefresh = <?php /* @noEscape */ echo json_encode($helper->getAjaxRefreshCanonicalUrl()); ?>;
+                window.displaySwatchClass = <?php /* @noEscape */ echo json_encode($displaySwatchClass); ?>;
+                if (window.ajaxCatalog == 'infiniteScroll') {
+                    ajaxInfiniteScroll.initInfiniteScroll();
+                } else if (window.ajaxCatalog == 'nextPage') {
+                    ajaxInfiniteScroll.initNextPage();
+                }
+
+                $('.product.photo.product-item-photo').on('click', function(e) {
+                    if(!e.metaKey) {
+                        var page = $(this).attr('data-item-page');
+                        var url = window.location.href;
+                        ajaxInfiniteScroll.resetIasPagination(page, url);
+                        var href = $(this).attr('href');
+                        window.location.href = href;
+                    }
+
+                })
+
+            });
+        });
+    </script>
+</div>
+
+<?php endif; ?>
