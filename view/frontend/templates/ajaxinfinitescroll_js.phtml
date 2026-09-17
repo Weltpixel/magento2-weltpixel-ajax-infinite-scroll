@@ -20,7 +20,7 @@
                     window.textNext = <?php /* @noEscape */ echo json_encode($helper->getTextLoadNext()); ?>;
                     window.textPrevious = <?php /* @noEscape */ echo json_encode($helper->getTextLoadPrevious()); ?>;
                     window.textNoMore = <?php /* @noEscape */ echo json_encode($helper->getTextNoMore()); ?>;
-                    window.infiniteShowViewedProducts = '<?php /* @noEscape */ echo (int) $helper->showViewedProducts(); ?>';
+                    window.infiniteShowViewedProducts = <?php /* @noEscape */ echo json_encode($helper->showViewedProducts()); ?>;
                     window.infiniteShowViewedProductsText = <?php /* @noEscape */ echo json_encode($helper->getTextForViewedProducts()); ?>;
                 </script>
                 <?php
@@ -47,7 +47,7 @@
             $(function($) {
                 window.loadingImage = <?php /* @noEscape */ echo json_encode($helper->getLoadingImage()); ?>;
                 window.wp_ajax_useCustomPlaceholder = '<?php /* @noEscape */ echo (int) $helper->isCustomLoadingPlaceholderEnabled(); ?>';
-                window.wp_ajax_placeholderCustomWidth = '<?php /* @noEscape */ echo (int) $helper->getLoadingPlaceholderWidth(); ?>';
+                window.wp_ajax_placeholderCustomWidth = <?php /* @noEscape */ echo json_encode($helper->getLoadingPlaceholderWidth()); ?>;
                 window.textLoadingMore = <?php /* @noEscape */ echo json_encode($helper->getTextLoading()); ?>;
                 window.showCanonical = '<?php /* @noEscape */ echo (int) $helper->isEnabledCanonicalPrevNext(); ?>';
                 window.ajaxCanonicalRefresh = <?php /* @noEscape */ echo json_encode($helper->getAjaxRefreshCanonicalUrl()); ?>;

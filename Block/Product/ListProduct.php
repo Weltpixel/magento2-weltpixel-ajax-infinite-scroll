@@ -170,10 +170,26 @@ class ListProduct extends \Magento\Catalog\Block\Product\ListProduct
         */
         if($this->_filters) {
             foreach($this->_filters as $filterCode => $filterValArr) {
+                /**
+                 * The filter name arrives from a query string the caller controls, and it is used
+                 * as a field name. Against the already prepared collection the value is dropped, so
+                 * nothing reaches the query today, but a name should never be able to carry
+                 * anything but an attribute code into the query builder. Only a plain attribute
+                 * code shape is accepted, and the values have to be scalars.
+                 */
+                if (!is_string($filterCode) || !preg_match('/^[a-z][a-z0-9_]*$/i', $filterCode)) {
+                    continue;
+                }
+
+                $filterValArr = array_values(array_filter((array)$filterValArr, 'is_scalar'));
+                if (!$filterValArr) {
+                    continue;
+                }
+
                 if($filterCode == 'cat') {
-                    $collection->addCategoriesFilter(['in' => $filterValArr]);
+                    $collection->addCategoriesFilter(['in' => array_map('intval', $filterValArr)]);
                 } else {
-                    $collection->addFieldToFilter($filterCode, ['in' => $filterValArr]);
+                    $collection->addFieldToFilter($filterCode, ['in' => array_map('strval', $filterValArr)]);
                 }
             }
         }

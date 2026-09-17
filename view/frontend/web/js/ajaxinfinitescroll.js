@@ -504,7 +504,7 @@ function($) {
                         if (currentPrev.length) {
                             currentPrev.attr('href', result.prev);
                         } else {
-                            $('<link rel="prev" href="' + result.prev + '">').insertAfter('link[rel="canonical"]');
+                            $('<link>', {rel: 'prev', href: result.prev}).insertAfter('link[rel="canonical"]');
                         }
                     } else {
                         $('link[rel="prev"]').remove();
@@ -516,7 +516,7 @@ function($) {
                             if (currentNext.length) {
                                 currentNext.attr('href', result.next);
                             } else {
-                                $('<link rel="next" href="' + result.next + '">').insertAfter('link[rel="canonical"]');
+                                $('<link>', {rel: 'next', href: result.next}).insertAfter('link[rel="canonical"]');
                             }
                         } else {
                             $('link[rel="next"]').remove();

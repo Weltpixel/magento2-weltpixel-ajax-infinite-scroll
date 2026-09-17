@@ -57,36 +57,58 @@ class Refresh extends \Magento\Framework\App\Action\Action
      */
     public function execute()
     {
-        $isAjax = false;
-        $responseData = [];
+        $responseData = ['errors' => true];
         $params = $this->getRequest()->getParams();
-        $currentUrl = $params['current_url'] ?? false;
-        $currentCategoryId = $params['category_id'] ?? false;
 
-        if (isset($params['is_ajax']) && $params['is_ajax']) {
-            $isAjax = true;
-        }
+        $isAjax = isset($params['is_ajax']) && is_scalar($params['is_ajax']) && $params['is_ajax'];
 
-        if ($isAjax && $currentCategoryId && $currentUrl) {
-            $currentPageNo = $this->_iasHelper->getCurrentPageNo($currentUrl);
-            $prevPageUrl = $this->_iasHelper->getPrevPageUrl($currentPageNo, $currentUrl);
-            $nextPageUrl = $this->_iasHelper->getNextPageUrl($currentPageNo, $currentUrl, $currentCategoryId);
+        /**
+         * The urls derived from this value are echoed back and the script puts them into a link
+         * element, so only a url belonging to this store is accepted and its fragment is dropped.
+         * Without that check any host, and any scheme including javascript:, was reflected, and the
+         * fragment is attacker controlled from another origin. A non scalar value also used to
+         * reach parse_url() and raise a TypeError, which is an Error and so escaped the catch.
+         */
+        $currentUrl = $this->_iasHelper->sanitizeRequestUrl($this->getScalarParam($params, 'current_url'));
+        $currentCategoryId = (int)$this->getScalarParam($params, 'category_id');
 
-            $responseData['errors'] = false;
-            $responseData['prev'] = $prevPageUrl;
-            $responseData['next'] = $nextPageUrl;
-        } else {
-            $responseData['errors'] = true;
+        if ($isAjax && $currentCategoryId && $currentUrl !== '') {
+            try {
+                $currentPageNo = $this->_iasHelper->getCurrentPageNo($currentUrl);
+
+                $responseData = [
+                    'errors' => false,
+                    'prev' => $this->_iasHelper->getPrevPageUrl($currentPageNo, $currentUrl),
+                    'next' => $this->_iasHelper->getNextPageUrl($currentPageNo, $currentUrl, $currentCategoryId)
+                ];
+            } catch (\Throwable $e) {
+                $this->_logger->critical($e);
+                $responseData = ['errors' => true];
+            }
         }
 
         try {
             return $this->jsonResponse($responseData);
-        } catch (\Magento\Framework\Exception\LocalizedException $e) {
-            return $this->jsonResponse($e->getMessage());
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            /** The message is logged rather than handed to the caller */
             $this->_logger->critical($e);
-            return $this->jsonResponse($e->getMessage());
+            return $this->jsonResponse(['errors' => true]);
         }
+    }
+
+    /**
+     * Read a request parameter that is about to be used as a string.
+     *
+     * Anything that is not a scalar becomes an empty string, so an array cannot reach a string
+     * function and raise a TypeError.
+     *
+     * @param array $params
+     * @param string $key
+     * @return string
+     */
+    protected function getScalarParam(array $params, $key)
+    {
+        return isset($params[$key]) && is_scalar($params[$key]) ? (string)$params[$key] : '';
     }
 
     /**

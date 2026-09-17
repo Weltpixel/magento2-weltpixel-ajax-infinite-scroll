@@ -83,59 +83,88 @@ class ReloadPagination extends \Magento\Framework\App\Action\Action
      */
     public function execute()
     {
-        $isAjax = false;
         $responseData = [];
         $params = $this->getRequest()->getParams();
 
-        if (isset($params['is_ajax']) && $params['is_ajax']) {
-            $isAjax = true;
-        }
+        $isAjax = isset($params['is_ajax']) && is_scalar($params['is_ajax']) && $params['is_ajax'];
 
         if ($isAjax) {
-            $filterParams = $this->_getUrlFilterParams($params['pager_url']);
-            $category = (isset($params['category_id']) && !empty($params['category_id'])) ? $this->_categoryRepository->get($params['category_id'], $this->_storeManager->getStore()->getId()) : false;
+            /**
+             * All of this used to run outside the try below. A parameter submitted as an array
+             * reached explode() or an array offset and raised a TypeError, which is an Error rather
+             * than an Exception and so was not caught, and a missing pager_url or p, or an unknown
+             * category id, threw for the same reason. The endpoint is anonymous, so each of those
+             * was a 500 and a report file holding the request. A bad request now answers errors.
+             */
+            try {
+                $categoryId = (int)$this->getScalarParam($params, 'category_id');
+                $page = (int)$this->getScalarParam($params, 'p');
+                $filterParams = $this->_getUrlFilterParams($this->getScalarParam($params, 'pager_url'));
 
-            if ($category) {
-                $layout = $this->_resultPageFactory->create()->getLayout();
-                $productList = $layout->createBlock('Magento\Catalog\Block\Product\ListProduct');
+                $category = $categoryId
+                    ? $this->_categoryRepository->get($categoryId, $this->_storeManager->getStore()->getId())
+                    : false;
 
-                $collection = $productList->setCategoryId($category->getId())
-                    ->injectAttributeFilters($filterParams)
-                    ->getLoadedProductCollection();
-                $collection = $collection->setCurPage($params['p']);
+                if ($category) {
+                    $layout = $this->_resultPageFactory->create()->getLayout();
+                    $productList = $layout->createBlock('Magento\Catalog\Block\Product\ListProduct');
 
-                $pagerBlock = $layout
-                    ->createBlock('Magento\Catalog\Block\Product\Widget\Html\Pager')
-                    ->setTemplate('Magento_Theme::html/pager.phtml')
-                    ->setUseContainer(false)
-                    ->setCollection($collection);
+                    $collection = $productList->setCategoryId($category->getId())
+                        ->injectAttributeFilters($filterParams)
+                        ->getLoadedProductCollection();
+                    $collection = $collection->setCurPage($page > 0 ? $page : 1);
 
-                $toolbarBlock = $layout
-                    ->createBlock('Magento\Catalog\Block\Product\ProductList\Toolbar')
-                    ->setTemplate('Magento_Catalog::product/list/toolbar.phtml')
-                    ->setCollection($collection);
+                    $pagerBlock = $layout
+                        ->createBlock('Magento\Catalog\Block\Product\Widget\Html\Pager')
+                        ->setTemplate('Magento_Theme::html/pager.phtml')
+                        ->setUseContainer(false)
+                        ->setCollection($collection);
 
-                $responseData = [
-                    'errors' => false,
-                    'pager' => $pagerBlock->toHtml(),
-                    'toolbar' => $toolbarBlock->toHtml()
-                ];
-            } else {
+                    $toolbarBlock = $layout
+                        ->createBlock('Magento\Catalog\Block\Product\ProductList\Toolbar')
+                        ->setTemplate('Magento_Catalog::product/list/toolbar.phtml')
+                        ->setCollection($collection);
+
+                    $responseData = [
+                        'errors' => false,
+                        'pager' => $pagerBlock->toHtml(),
+                        'toolbar' => $toolbarBlock->toHtml()
+                    ];
+                } else {
+                    $responseData = [
+                        'errors' => true
+                    ];
+                }
+            } catch (\Throwable $e) {
+                $this->_logger->critical($e);
                 $responseData = [
                     'errors' => true
                 ];
             }
-
         }
 
         try {
             return $this->jsonResponse($responseData);
-        } catch (\Magento\Framework\Exception\LocalizedException $e) {
-            return $this->jsonResponse($e->getMessage());
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            /** The message is logged rather than handed to the caller */
             $this->_logger->critical($e);
-            return $this->jsonResponse($e->getMessage());
+            return $this->jsonResponse(['errors' => true]);
         }
+    }
+
+    /**
+     * Read a request parameter that is about to be used as a string.
+     *
+     * Anything that is not a scalar becomes an empty string, so an array cannot reach a string
+     * function and raise a TypeError.
+     *
+     * @param array $params
+     * @param string $key
+     * @return string
+     */
+    protected function getScalarParam(array $params, $key)
+    {
+        return isset($params[$key]) && is_scalar($params[$key]) ? (string)$params[$key] : '';
     }
 
 
@@ -144,17 +173,23 @@ class ReloadPagination extends \Magento\Framework\App\Action\Action
      * @return array
      */
     protected function _getUrlFilterParams($urlParam) {
-        $url = explode("?", $urlParam);
-        $urlParamArr = (isset($url[1])) ? explode("&", $url[1]) : false;
         $params = [];
+        $url = explode("?", (string)$urlParam);
+        $urlParamArr = (isset($url[1])) ? explode("&", $url[1]) : false;
         if(!$urlParamArr) {
             return $params;
         }
-        foreach($urlParamArr as $urlParam) {
-            $paramArr = explode('=', $urlParam);
-            $paramStrClean = urldecode($paramArr[1]);
-            if($paramArr[0] != 'q')
-                $params[$paramArr[0]] = explode(',', $paramStrClean);
+        foreach($urlParamArr as $urlParamPair) {
+            $paramArr = explode('=', $urlParamPair);
+            /**
+             * A query part carrying no "=" has no index 1, which used to be an undefined offset and
+             * therefore a 500 on an anonymous request. Such a part is skipped now, as is an empty
+             * name. The loop variable no longer shadows the argument either.
+             */
+            if ($paramArr[0] === '' || $paramArr[0] == 'q' || !isset($paramArr[1])) {
+                continue;
+            }
+            $params[$paramArr[0]] = explode(',', urldecode($paramArr[1]));
         }
 
         return $params;

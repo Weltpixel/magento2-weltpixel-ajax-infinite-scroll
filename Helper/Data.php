@@ -147,7 +147,7 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
      */
     public function showViewedProducts()
     {
-        return (boolean)$this->getConfigValue('advanced', 'show_viewed_products');
+        return (bool)$this->getConfigValue('advanced', 'show_viewed_products');
     }
 
     /**
@@ -469,6 +469,44 @@ class Data extends \Magento\Framework\App\Helper\AbstractHelper
         if (isset($parts['fragment'])) $url .= '#' . $parts['fragment'];
 
         return $url;
+    }
+
+    /**
+     * Accept a url arriving in the request only when it belongs to this store, without its fragment.
+     *
+     * The canonical endpoint echoes urls derived from this value back to the browser, which inserts
+     * them into a link element, so a url on another host, or carrying a scheme such as javascript:,
+     * has no business being reflected. The fragment is dropped because it is attacker controlled
+     * from another origin and is not part of a canonical url anyway. Returns an empty string when
+     * the url is not one of ours, so the caller can refuse the request.
+     *
+     * @param string $url
+     * @return string
+     */
+    public function sanitizeRequestUrl($url)
+    {
+        if (!is_string($url) || trim($url) === '') {
+            return '';
+        }
+
+        $parts = parse_url(trim($url));
+        if (!is_array($parts) || empty($parts['scheme']) || empty($parts['host'])) {
+            return '';
+        }
+
+        if (!in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
+            return '';
+        }
+
+        $baseParts = parse_url($this->_storeManager->getStore()->getBaseUrl());
+        if (!is_array($baseParts) || empty($baseParts['host'])
+            || strtolower($parts['host']) !== strtolower($baseParts['host'])) {
+            return '';
+        }
+
+        unset($parts['fragment']);
+
+        return $this->buildUrl($parts);
     }
 
     /**
